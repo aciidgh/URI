@@ -55,20 +55,6 @@ extension UInt8 {
         }
     }
 
-    func isUnreserved() -> Bool {
-        switch self {
-        case UInt8(ascii: "a")...UInt8(ascii: "z"),
-             UInt8(ascii: "A")...UInt8(ascii: "Z"),
-             UInt8(ascii: "."),
-             UInt8(ascii: "_"),
-             UInt8(ascii: "~"),
-             UInt8(ascii: "-"):
-            return true
-        default:
-            return false
-        }
-    }
-
     func isQuestionMark() -> Bool {
         return self == UInt8(ascii: "?")
     }
@@ -91,22 +77,6 @@ extension UInt8 {
 
     func isColon() -> Bool {
         return self == UInt8(ascii: ":")
-    }
-
-    func isHyphen() -> Bool {
-        return self == UInt8(ascii: "-")
-    }
-
-    func isPeriod() -> Bool {
-        return self == UInt8(ascii: ".")
-    }
-
-    func isUnderscore() -> Bool {
-        return self == UInt8(ascii: "_")
-    }
-
-    func isTilde() -> Bool {
-        return self == UInt8(ascii: "~")
     }
 
     func isForwardSlash() -> Bool {
