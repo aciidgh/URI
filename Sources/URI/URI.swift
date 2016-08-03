@@ -2,11 +2,11 @@
 public struct URI {
     public let scheme: String
     public let host: String
-    public let user = ""
+    public let userInfo: String?
     public let port: Int?
-    public let path = ""
-    public let query = ""
-    public let fragment = ""
+    public let path: String
+    public let query: String
+    public let fragment: String
     let storage: String = ""
 
     public init(_ string: String) throws {
@@ -15,6 +15,10 @@ public struct URI {
         scheme = parser.scheme
         host = parser.host
         port = parser.port
+        userInfo = parser.userInfo
+        path = parser.path
+        query = parser.query
+        fragment = parser.fragment
     }
 }
 
@@ -25,6 +29,16 @@ extension URI: CustomStringConvertible {
 }
 
 extension UInt8 {
+
+    func isPathDelimiter() -> Bool {
+        switch self {
+        case UInt8(ascii: "?"),
+             UInt8(ascii: "#"):
+            return true
+        default:
+            return false
+        }
+    }
 
     func isReserved() -> Bool {
         switch self {
@@ -53,6 +67,18 @@ extension UInt8 {
         default:
             return false
         }
+    }
+
+    func isQuestionMark() -> Bool {
+        return self == UInt8(ascii: "?")
+    }
+
+    func isPound() -> Bool {
+        return self == UInt8(ascii: "#")
+    }
+
+    func isAtSign() -> Bool {
+        return self == UInt8(ascii: "@")
     }
 
     func isLSquareBracket() -> Bool {
@@ -136,6 +162,10 @@ struct Parser {
     var scheme = ""
     var host = ""
     var port: Int?
+    var userInfo: String?
+    var path = ""
+    var query = ""
+    var fragment = ""
 
     init(_ string: String) {
         self.data = string
@@ -151,6 +181,27 @@ struct Parser {
         }
         consume()
         try parseHierPart()
+        if let c = look(), c.isQuestionMark() {
+            consume()
+            try parseQuery()
+        }
+
+        if let c = look(), c.isPound() {
+            consume()
+            try parseFragment()
+        }
+    }
+
+    mutating func parseQuery() throws {
+        let startIndex = index
+        while let c = look(), !c.isPound() {
+            consume()
+        }
+        query = String(utf8[startIndex..<index])!
+    }
+
+    mutating func parseFragment() throws {
+        fragment = String(utf8[index..<utf8.endIndex])!
     }
 
     // scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
@@ -175,6 +226,7 @@ struct Parser {
             if let c = look(), c.isForwardSlash() {
                 consume()
                 try parseAuthority()
+                try parsePath()
             } else {
                 throw URIError.parsingError("Expected /")
             }
@@ -185,15 +237,11 @@ struct Parser {
 
     // authority = [ userinfo "@" ] host [ ":" port ]
     mutating func parseAuthority() throws {
-        try parseUserInfo()
         try parseHost()
         if let c = look(), c.isColon() {
             consume()
             try parsePort()
         }
-    }
-
-    mutating func parseUserInfo() throws {
     }
 
     // host = IP-literal / IPv4address / reg-name
@@ -210,15 +258,28 @@ struct Parser {
             if !(look()?.isRSquareBracket() ?? false) {
                 throw URIError.parsingError("Incomplete URI expected ].")
             }
+            consume() // consume ]
             return
         }
-        // IPv4address / reg-name
-        // FIXME: Doesn't validates, parses blindly till first reserved char.
-        let startIndex = index
-        while let c = look(), !c.isReserved() {
-            consume()
+
+        outer: while true {
+            let startIndex = index
+            while let c = look() {
+                if c.isAtSign() {
+                    userInfo = String(utf8[startIndex..<index])!
+                    consume()
+                    break
+                }
+                // IPv4address / reg-name
+                // FIXME: Doesn't validates, parses blindly till first reserved char.
+                if c.isReserved() {
+                    host = String(utf8[startIndex..<index])!
+                    break outer
+                }
+                consume()
+            }
+            if look() == nil { break outer }
         }
-        host = String(utf8[startIndex..<index])!
     }
 
     mutating func parsePort() throws {
@@ -227,6 +288,14 @@ struct Parser {
             consume()
         }
         port = Int(String(utf8[startIndex..<index])!)!
+    }
+
+    mutating func parsePath() throws {
+        let startIndex = index
+        while let c = look(), !c.isPathDelimiter() {
+            consume()
+        }
+        path = String(utf8[startIndex..<index])!
     }
 
     mutating func look() -> UInt8? {
